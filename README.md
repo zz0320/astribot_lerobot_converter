@@ -17,6 +17,8 @@
 
 ## 🚀 快速开始
 
+### 目录转换 (ROS Bag 目录)
+
 ```bash
 # 合并所有 episodes 到单个数据集 (推荐，自动读取任务描述)
 python convert.py /root/astribot_raw_datasets -o ./astribot_dataset --repo-id astribot/demo
@@ -28,21 +30,40 @@ python convert.py /root/astribot_raw_datasets -o ./output --task "Pick up the cu
 python convert.py /root/astribot_raw_datasets -o ./output --separate --workers 4
 ```
 
+### Tar 文件转换
+
+```bash
+# 转换单个 tar 文件
+python convert_tar.py /path/to/astribot_data.tar -o ./output
+
+# 转换目录下所有 tar 文件 (合并为单个数据集)
+python convert.py /root/datasets/astribot_rawdata -o ./output --repo-id astribot/dataset
+
+# 使用 convert.py 自动检测并转换 tar 文件
+python convert.py /root/datasets/astribot_rawdata -o ./output
+```
+
 ## 📁 项目结构
 
 ```
 astribot_lerobot_converter/
-├── convert.py              # 主入口脚本
+├── convert.py              # 主入口脚本 (支持目录和 tar 文件)
+├── convert_tar.py          # Tar 文件专用转换器
+├── train_astribot.py       # 训练脚本示例
 ├── README.md               # 本文档
 ├── scripts/
-│   ├── batch_convert.py    # 批量转换脚本
-│   ├── convert_single.py   # 单个转换模块
-│   └── extract_bag.py      # ROS bag 提取工具
+│   ├── batch_convert.py    # 批量转换脚本 (独立保存模式)
+│   ├── convert_single.py   # 单个 episode 转换模块
+│   ├── convert_merged.py   # 合并转换模块 (核心逻辑)
+│   ├── extract_bag.py      # ROS bag 提取工具
+│   └── visualize.py        # 数据可视化工具
 ├── configs/                # 配置文件 (可选)
 └── docs/                   # 详细文档
 ```
 
 ## 📋 输入数据格式
+
+### 目录模式
 
 输入数据应按以下结构组织：
 
@@ -57,6 +78,18 @@ astribot_raw_datasets/
 │   └── record/
 │       └── raw_data.bag
 └── ...
+```
+
+### Tar 文件模式
+
+Tar 文件内部结构：
+
+```
+astribot_data.tar
+├── __loongdata_metadata.json   # 可选，包含 taskName 等
+├── meta_info.json              # 可选
+└── record/
+    └── raw_data.bag            # 必需
 ```
 
 ## 📤 输出格式
@@ -100,11 +133,13 @@ output/
 
 ## 🔧 命令行参数
 
+### convert.py (主入口)
+
 ```
-python convert.py <bag_root> [选项]
+python convert.py <input_path> [选项]
 
 位置参数:
-  bag_root              包含 rosbag 数据的根目录
+  input_path            包含 rosbag 数据的根目录或 tar 文件路径
 
 选项:
   -o, --output-dir DIR  输出目录
@@ -113,6 +148,22 @@ python convert.py <bag_root> [选项]
   --no-episode-tasks    禁用从元数据自动读取任务描述
   --separate            每个 episode 独立保存为单独的数据集
   --workers N           并行进程数 (仅用于 --separate 模式)
+```
+
+### convert_tar.py (Tar 专用)
+
+```
+python convert_tar.py <input_path> [选项]
+
+位置参数:
+  input_path            tar 文件路径或包含 tar 文件的目录
+
+选项:
+  -o, --output-dir DIR  输出目录 (必需)
+  --repo-id TEXT        数据集 ID (默认: astribot/dataset)
+  --task TEXT           任务描述 (如果未指定，将从元数据中读取)
+  --episode-id TEXT     Episode ID (如果未指定，将从元数据中读取)
+  --verbose             显示详细输出
 ```
 
 ## 🗣️ 语言描述 (Language Instruction) 支持
@@ -149,7 +200,9 @@ python convert.py /root/astribot_raw_datasets -o ./output
 {
   "taskName": "astribot_test2",
   "scene": "kitchen",
-  "operator": "user1"
+  "operator": "user1",
+  "equipmentModel": "S1",
+  "duration": 45000
 }
 ```
 
@@ -277,6 +330,40 @@ for i in range(dataset.num_episodes):
     print(f"Episode {i}: {ep_info['length']} 帧")
 ```
 
+## 🔍 数据可视化
+
+提供多种可视化方式查看转换后的数据：
+
+```bash
+# 显示单帧图像 (默认)
+python scripts/visualize.py /root/astribot_dataset --repo-id astribot/demo --episode 0
+
+# 使用 Rerun 可视化 (推荐，交互式)
+python scripts/visualize.py /root/astribot_dataset --repo-id astribot/demo --episode 0 --rerun
+
+# 导出为视频
+python scripts/visualize.py /root/astribot_dataset --repo-id astribot/demo --episode 0 --export-video -o ./videos
+
+# 绘制关节数据图表
+python scripts/visualize.py /root/astribot_dataset --repo-id astribot/demo --episode 0 --plot -o ./plots
+
+# 显示指定帧
+python scripts/visualize.py /root/astribot_dataset --repo-id astribot/demo --episode 0 --show-frame --frame 100
+```
+
+### 可视化选项
+
+| 选项 | 说明 |
+|------|------|
+| `--rerun` | 使用 Rerun 进行交互式可视化 |
+| `--plot` | 生成关节位置 matplotlib 图表 |
+| `--export-video` | 导出 episode 为 MP4 视频 |
+| `--show-frame` | 显示单帧所有相机图像 |
+| `--camera NAME` | 指定导出视频使用的相机 |
+| `--episode N` | 指定可视化的 episode 索引 |
+| `--frame N` | 指定显示的帧偏移 |
+| `-o DIR` | 输出目录 |
+
 ## 🛠️ 其他工具
 
 ### 提取 ROS Bag 数据 (不转换为 LeRobot)
@@ -355,7 +442,11 @@ accelerate launch --num_processes=4 \
 ## ⚙️ 环境依赖
 
 ```bash
+# 基础依赖
 pip install rosbags tqdm opencv-python-headless numpy
+
+# 可视化依赖 (可选)
+pip install matplotlib rerun-sdk
 
 # LeRobot v3.0
 cd /root/lerobot && pip install -e .
@@ -368,19 +459,26 @@ cd /root/lerobot && pip install -e .
 ```json
 {
   "timestamp": "2025-12-08T03:30:00",
+  "repo_id": "astribot/demo",
   "total_episodes": 3,
-  "successful": 3,
   "total_frames": 2459,
-  "total_duration": 120.5,
-  "results": [
+  "total_tasks": 2,
+  "tasks": ["astribot_test2 - 场景: kitchen", "Pick up cup"],
+  "fps": 30,
+  "robot_type": "astribot_s1",
+  "episodes": [
     {
-      "bag_dir": "/root/astribot_raw_datasets/ep1",
-      "success": true,
-      "frames": 945,
-      "duration": 45.2
-    },
-    ...
-  ]
+      "episode_index": 0,
+      "source": "ep1",
+      "task": "astribot_test2 - 场景: kitchen",
+      "frames": 945
+    }
+  ],
+  "sync_config": {
+    "base_topic": "/astribot_camera/head_rgbd/color_compress/compressed",
+    "joint_tolerance_ms": 50,
+    "image_tolerance_ms": 100
+  }
 }
 ```
 
@@ -390,7 +488,12 @@ cd /root/lerobot && pip install -e .
 - 关节数据: 250 Hz (手臂、夹爪、头部、腰部、底盘)
 - 图像数据: 30 Hz
 
-转换时以 head 相机帧率 (30 Hz) 为基准，使用最近邻插值同步关节数据。
+### 组帧逻辑
+
+1. **基准选择**: 以 head 相机时间戳为基准 (30 Hz)
+2. **关节同步**: 对每个基准时间戳 t，查找 t ± 50ms 内最近的关节数据
+3. **图像同步**: 查找 t ± 100ms 内最近的其他相机图像
+4. **有效帧条件**: 必须有 arm_left/arm_right 的状态和命令数据
 
 ### 支持的 ROS Topics
 
@@ -423,6 +526,13 @@ A: 减少 `--workers` 数量，或增加系统内存。
 **Q: 某个 episode 转换失败？**
 A: 查看 `conversion_report.json` 中的错误信息，单独重试该 episode。
 
+**Q: 如何处理 tar.gz 文件？**
+A: 目前仅支持 `.tar` 文件，需先解压 `.tar.gz`:
+```bash
+gunzip your_file.tar.gz
+python convert_tar.py your_file.tar -o ./output
+```
+
 **Q: 如何添加新的传感器数据？**
 A: 修改 `scripts/convert_merged.py` 中的以下部分：
 1. 添加关节数常量 (如 `NEW_JOINTS = 3`)
@@ -432,7 +542,9 @@ A: 修改 `scripts/convert_merged.py` 中的以下部分：
 5. 在 `synchronize_data()` 中添加数据索引
 6. 在 `convert_frame_to_lerobot()` 中添加数据处理逻辑
 
+**Q: Rerun 可视化窗口无法打开？**
+A: 确保安装了 rerun-sdk: `pip install rerun-sdk`，并且在支持 GUI 的环境中运行。
+
 ## 📄 许可证
 
 内部使用
-

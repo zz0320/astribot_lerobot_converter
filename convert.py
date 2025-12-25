@@ -84,9 +84,9 @@ def main():
         # ========== 目录下有 tar ==========
         print(f"[模式] {len(tar_files)} 个 tar 文件 (25维)")
         output_dir = args.output_dir or get_default_output(args.separate)
-        output_dir.mkdir(parents=True, exist_ok=True)
         
         if args.separate:
+            output_dir.mkdir(parents=True, exist_ok=True)
             from tar_converter import convert_tar_file
             total = 0
             for i, tar_file in enumerate(tar_files, 1):
